@@ -1,0 +1,22 @@
+Searches keywords inside dictionary.
+If the exact match is not found, it goes for a fuzzy search.
+The dictionary can be built by providing a tab separated file, each entry in a new line. 
+keyword\tdescription
+keyword\tdescription
+keyword\tdescription
+keyword\tdescription
+keyword\tdescription
+
+Usage
+
+Deploy --------------------
+	Copy deploy/dictionary.war file to webapps folder
+
+Load Data   --------------------
+http://localhost/dictionary/dictionary.html?action=load&query=http://a.b.c.d/data.tab
+
+Find --------------------
+http://localhost/dictionary/dictionary.html?action=search&query=keyword
+http://localhost/dictionary/dictionary.html?action=search&query=keyward
+
+On GaE please set OS and Java version in the appengine-web.xml file to make it run.
