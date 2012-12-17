@@ -1,0 +1,6 @@
+hydrogen	gas
+nitrogen	gas
+ashoka	king
+abinash	human
+emu	bird
+hadoop	software

@@ -82,8 +82,17 @@ public class DictionaryServlet extends HttpServlet {
 		try {
 			if ("load".equals(action)) {
 				Dictionary.getInstance().load(query, out);
-			} else if ("search".equals(action)) {
-				out.append(Dictionary.getInstance().find(query));
+			} else if ("exact.description".equals(action)) {
+				out.append(Dictionary.getInstance().findExact(query));
+			} else if ("search.top.description".equals(action)) {
+				out.append(Dictionary.getInstance().findTopDocument(query, false));
+			} else if ("search.top.word".equals(action)) {
+				out.append(Dictionary.getInstance().findTopDocument(query, true));
+			} else if ("search.predict".equals(action)) {
+				out.append(Dictionary.getInstance().predict(query).toString());
+			} else if ("exact.exists".equals(action)) {
+				if ( Dictionary.getInstance().containsExact(query) ) out.append("true");
+				else out.append("false");
 			}
 
 		} catch (Exception ex) {

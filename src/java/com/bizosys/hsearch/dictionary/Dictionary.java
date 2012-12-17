@@ -25,7 +25,9 @@ import java.io.InputStreamReader;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.lucene.analysis.Analyzer;
@@ -51,14 +53,21 @@ import org.apache.lucene.util.Version;
 public class Dictionary {
 
 	public static void main(String[] args) throws Exception {
-		StringWriter outputWriter = new StringWriter();
-		Dictionary.getInstance().load("https://abinash.s3.amazonaws.com/test.txt", outputWriter);
-		System.out.println(outputWriter.toString());
 		
-		System.out.println( "Found Word :\n" +  Dictionary.getInstance().find("hav") );
+		StringWriter responseWriter = new StringWriter();
+		/**
+		Dictionary.getInstance().load("file:///D:/work/hsearch-dictionary/src/test/words.txt", responseWriter);
+		*/
+
+		Map<String, String> words = new HashMap<String, String>();
+		words.put("john", "fname");
+		words.put("abinash", "fname");
+		
+		Dictionary.getInstance().load(words, responseWriter, false);
+		System.out.println(responseWriter.toString());
+		System.out.println( "Found Word :" +  Dictionary.getInstance().findTopDocument("joh", true) );
 	}
 	
-	private  final static String Empty = ""; 
 	private static Dictionary dict = null;
 	public static Dictionary getInstance() {
 		if ( null != dict) return dict;
@@ -69,7 +78,7 @@ public class Dictionary {
 		return dict;
 	}
 	
-	Map<String, String> content = new HashMap<String, String>();
+	Map<String, String> exactWords = new HashMap<String, String>();
 	Directory idx = null;
 	IndexReader reader = null;
 	IndexSearcher searcher = null;
@@ -77,6 +86,133 @@ public class Dictionary {
 	public Dictionary() {
 	}
 	
+	public String findTopDocument(String query, boolean isWord) throws Exception {
+    	
+		query = query.toLowerCase();
+		if ( exactWords.containsKey(query)) {
+			if ( isWord ) return query;
+			else return exactWords.get(query);
+		}
+		Analyzer analyzer = new StandardAnalyzer(Version.LUCENE_35);
+		Document content = searchTop(idx, query, analyzer);
+		if ( content == null) {
+			content = searchTop(idx, (query + "~"), analyzer);
+			if ( null == content) return null;
+		}
+			
+		if ( isWord) return getWord(content);
+		else return getDescription(content);
+    }
+	
+	public List<String> predict(String query) throws Exception {
+    	
+		query = query.toLowerCase();
+
+		Analyzer analyzer = new StandardAnalyzer(Version.LUCENE_35);
+		List<Document> contents = search(idx, query + "*", analyzer, 10);
+		if ( contents == null) return null;
+		
+		List<String> matchings = new ArrayList<String>();
+		for (Document doc : contents) {
+			System.out.println(getWord(doc));
+			matchings.add( getWord(doc) );
+		}
+		
+		return matchings;
+    }	
+	
+	public boolean containsExact(String query) throws Exception {
+    	
+		query = query.toLowerCase();
+		return ( exactWords.containsKey(query) );
+    }	
+	
+	public String findExact(String query) throws Exception {
+    	
+		query = query.toLowerCase();
+		if ( exactWords.containsKey(query)) return exactWords.get(query);
+		return null;
+    }	
+	
+	private Document searchTop(Directory idx, String query, Analyzer analyzer) throws ParseException, CorruptIndexException, IOException {
+		Query q = new QueryParser(Version.LUCENE_35, "k", analyzer).parse(query);
+    	 
+    	 int hitsPerPage = 1;
+    	 
+    	 TopScoreDocCollector collector = TopScoreDocCollector.create(hitsPerPage, true);
+    	 searcher.search(q, collector);
+    	 ScoreDoc[] hits = collector.topDocs().scoreDocs;
+    	 int hitsT = ( null != hits ) ? hits.length : 0;
+    	 
+    	 if ( hitsT <= 0 ) return null;
+    	 return searcher.doc(hits[0].doc);
+	}
+		
+
+	private List<Document> search(Directory idx, String query, Analyzer analyzer, int hitsPerPage) throws ParseException, CorruptIndexException, IOException {
+		Query q = new QueryParser(Version.LUCENE_35, "k", analyzer).parse(query);
+    	 
+    	 TopScoreDocCollector collector = TopScoreDocCollector.create(hitsPerPage, true);
+    	 searcher.search(q, collector);
+    	 ScoreDoc[] hits = collector.topDocs().scoreDocs;
+    	 int hitsT = ( null != hits ) ? hits.length : 0;
+    	 
+    	 List<Document> foundDocs = new ArrayList<Document>(hitsT);
+    	 if ( hitsT > 0 ) {
+        	 for(int i=0;i<hits.length;i++) {
+        		 int docId = hits[i].doc;
+        	     Document d = searcher.doc(docId);
+        	     foundDocs.add(d);
+        	 }
+    	 }
+    	 return foundDocs;
+	}
+	
+	private String getDescription(Document d) {
+	     return exactWords.get(d.get("k"));
+	}
+	
+	private String getWord(Document d) {
+	     return d.get("k");
+	}
+
+	private Document createDocument(String k) {
+        Document doc = new Document();
+        doc.add(new Field("k", true, k, Field.Store.YES, Index.ANALYZED,TermVector.NO) );
+        return doc;
+    }
+
+	
+    public void load(Map<String, String> wordDescription, Writer outputWriter, boolean isExactSave) throws Exception{
+		if ( null != reader ) {
+			try {
+				reader.close();
+				if ( null != searcher ) searcher.close();
+			} catch (Exception ex) {
+			}
+		}
+		
+		this.idx = new RAMDirectory();
+    	IndexWriterConfig indexWriterConfig = 
+    		new IndexWriterConfig(Version.LUCENE_35,new StandardAnalyzer(Version.LUCENE_35));
+		IndexWriter writer = new IndexWriter(this.idx, indexWriterConfig);
+    	
+		for (String word : wordDescription.keySet()) {
+			if (word.length() == 0) continue;
+			String desc = wordDescription.get(word);
+			writer.addDocument( createDocument(word) );	
+			if ( isExactSave ) exactWords.put(word, desc);
+			if ( null != outputWriter ) outputWriter.append(word).append("</BR>\n");
+		}
+		if ( null != outputWriter ) outputWriter.append(
+			"----------\n</BR>Total  Keywords Loaded :  ").append(
+				new Integer(wordDescription.size()).toString());
+		
+		writer.close();
+		reader = IndexReader.open(this.idx);
+		searcher = new IndexSearcher(reader);
+	}
+    
 	public void load(String file, Writer outputWriter) throws Exception{
 		if ( null != reader ) {
 			try {
@@ -91,41 +227,7 @@ public class Dictionary {
 		reader = IndexReader.open(idx);
 		searcher = new IndexSearcher(reader);
 	}
-	
-	public String find(String query) throws Exception {
-    	
-		query = query.toLowerCase();
-		if ( content.containsKey(query)) return content.get(query);
-
-		Analyzer analyzer = new StandardAnalyzer(Version.LUCENE_35);
-		String content = search(idx, query, analyzer);
-		if ( content == Empty) {
-			content = search(idx, query + "~", analyzer);
-		}
-		return content;
-    }
-
-	private String search(Directory idx, String query, Analyzer analyzer) throws ParseException, CorruptIndexException, IOException {
-		Query q = new QueryParser(Version.LUCENE_35, "k", analyzer).parse(query);
-    	 
-    	 int hitsPerPage = 1;
-    	 
-    	 TopScoreDocCollector collector = TopScoreDocCollector.create(hitsPerPage, true);
-    	 searcher.search(q, collector);
-    	 ScoreDoc[] hits = collector.topDocs().scoreDocs;
-    	 int hitsT = ( null != hits ) ? hits.length : 0;
-    	 
-    	 String desc = Empty;
-    	 if ( hitsT > 0 ) {
-        	 for(int i=0;i<hits.length;i++) {
-        		 int docId = hits[i].doc;
-        	     Document d = searcher.doc(docId);
-        	     desc = content.get(d.get("k"));
-        	 }
-    	 }
-    	 return desc;
-	}
-	
+	    
 	private Directory build(String file, Writer outputWriter) throws Exception {
     	RAMDirectory idx = new RAMDirectory();
     	
@@ -136,12 +238,6 @@ public class Dictionary {
     	writer.close();
     	return idx;
 	}
-    
-    private Document createDocument(String k) {
-        Document doc = new Document();
-        doc.add(new Field("k", true, k, Field.Store.YES, Index.ANALYZED,TermVector.NO) );
-        return doc;
-    }
     
 	public final int toLines(String fileName, IndexWriter writer, Writer outputWriter) throws  Exception {
 		
@@ -167,11 +263,13 @@ public class Dictionary {
 				String key = line.substring(0, divideAt).toLowerCase();
 				String val = line.substring(divideAt + 1);
 				writer.addDocument( createDocument( key) );	
-				content.put(key, val);
-				outputWriter.append(key).append("</BR>");
+				exactWords.put(key, val);
+				if ( null != outputWriter) outputWriter.append(key).append("</BR>\n");
 			}
-			outputWriter.append("----------</BR>Total  Keywords Loaded :  ").append(new Integer(content.size()).toString());
-			return content.size();
+			if ( null != outputWriter) outputWriter.append(
+				"----------\n</BR>Total  Keywords Loaded :  ").append(
+					new Integer(exactWords.size()).toString());
+			return exactWords.size();
 		} finally {
 			if ( null != reader ) reader.close();
 			if ( null != stream) stream.close();
