@@ -65,7 +65,7 @@ public class Dictionary {
 		
 		Dictionary.getInstance().load(words, responseWriter, false);
 		System.out.println(responseWriter.toString());
-		System.out.println( "Found Word :" +  Dictionary.getInstance().findTopDocument("joh", true) );
+		System.out.println( "Found Word :" +  Dictionary.getInstance().findTopDocument("jahn", true) );
 	}
 	
 	private static Dictionary dict = null;
