@@ -13,6 +13,7 @@ tmp/
 *.bak
 *.swp
 *~.nib
+*.svn
 local.properties
 .classpath
 .settings/
@@ -20,6 +21,8 @@ local.properties
 
 # External tool builders
 .externalToolBuilders/
+
+/.svn/
 
 # Locally stored "Eclipse launch configurations"
 *.launch
