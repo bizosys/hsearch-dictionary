@@ -137,8 +137,12 @@ public class DictionaryValues {
         return doc;
     }
 
-	
-    public int load(Set<String> wordDescription, Writer outputWriter) throws Exception{
+    public int load(Set<String> wordDescription, Writer outputWriter) throws Exception
+    {
+    	return load(wordDescription, outputWriter, new StandardAnalyzer(Version.LUCENE_35));
+    }
+
+    public int load(Set<String> wordDescription, Writer outputWriter, Analyzer analyzer) throws Exception{
 		if ( null != reader ) {
 			try {
 				reader.close();
@@ -149,7 +153,7 @@ public class DictionaryValues {
 		
 		this.idx = new RAMDirectory();
     	IndexWriterConfig indexWriterConfig = 
-    		new IndexWriterConfig(Version.LUCENE_35,new StandardAnalyzer(Version.LUCENE_35));
+    		new IndexWriterConfig(Version.LUCENE_35, analyzer);
 		IndexWriter writer = new IndexWriter(this.idx, indexWriterConfig);
     	
 		int linesAdded = 0;
